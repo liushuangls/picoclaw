@@ -766,6 +766,12 @@ func (al *AgentLoop) maybeSummarize(agent *AgentInstance, sessionKey, channel, c
 	threshold := agent.ContextWindow * 75 / 100
 
 	if len(newHistory) > 200 || tokenEstimate > threshold {
+		logger.InfoCF("agent", "Start history summarize", map[string]any{
+			"session_key":    sessionKey,
+			"history_length": len(newHistory),
+			"token_estimate": tokenEstimate,
+			"threshold":      threshold,
+		})
 		summarizeKey := agent.ID + ":" + sessionKey
 		if _, loading := al.summarizing.LoadOrStore(summarizeKey, true); !loading {
 			go func() {
