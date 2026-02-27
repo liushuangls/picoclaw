@@ -207,7 +207,8 @@ func TestFullConfig_JSON_BackwardCompat(t *testing.T) {
 			"defaults": {
 				"workspace": "~/.picoclaw/workspace",
 				"model_name": "gpt4",
-				"max_tokens": 4096
+				"max_output_tokens": 4096,
+				"context_window": 65536
 			}
 		},
 		"model_list": [
@@ -232,6 +233,9 @@ func TestFullConfig_JSON_BackwardCompat(t *testing.T) {
 			// Check that GetModelName returns correct value
 			if got := cfg.Agents.Defaults.GetModelName(); got != "gpt4" {
 				t.Errorf("GetModelName() = %q, want %q", got, "gpt4")
+			}
+			if got := cfg.Agents.Defaults.GetMaxOutputTokens(); got != 4096 {
+				t.Errorf("GetMaxOutputTokens() = %d, want %d", got, 4096)
 			}
 
 			// Check that GetModelConfig works

@@ -68,7 +68,7 @@ func TestAgentConfig_FullParse(t *testing.T) {
 			"defaults": {
 				"workspace": "~/.picoclaw/workspace",
 				"model": "glm-4.7",
-				"max_tokens": 8192,
+				"max_output_tokens": 8192,
 				"max_tool_iterations": 20
 			},
 			"list": [
@@ -169,7 +169,7 @@ func TestConfig_BackwardCompat_NoAgentsList(t *testing.T) {
 			"defaults": {
 				"workspace": "~/.picoclaw/workspace",
 				"model": "glm-4.7",
-				"max_tokens": 8192,
+				"max_output_tokens": 8192,
 				"max_tool_iterations": 20
 			}
 		}
@@ -215,12 +215,26 @@ func TestDefaultConfig_Model(t *testing.T) {
 	}
 }
 
-// TestDefaultConfig_MaxTokens verifies max tokens has default value
-func TestDefaultConfig_MaxTokens(t *testing.T) {
+// TestDefaultConfig_MaxOutputTokens verifies max output tokens has default value
+func TestDefaultConfig_MaxOutputTokens(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.Agents.Defaults.MaxTokens == 0 {
-		t.Error("MaxTokens should not be zero")
+	if cfg.Agents.Defaults.MaxOutputTokens == 0 {
+		t.Error("MaxOutputTokens should not be zero")
+	}
+	if cfg.Agents.Defaults.GetMaxOutputTokens() == 0 {
+		t.Error("GetMaxOutputTokens should not be zero")
+	}
+}
+
+func TestDefaultConfig_ContextWindow(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.Agents.Defaults.ContextWindow != 128000 {
+		t.Errorf("ContextWindow = %d, want %d", cfg.Agents.Defaults.ContextWindow, 128000)
+	}
+	if cfg.Agents.Defaults.GetContextWindow() != 128000 {
+		t.Errorf("GetContextWindow = %d, want %d", cfg.Agents.Defaults.GetContextWindow(), 128000)
 	}
 }
 
@@ -349,8 +363,11 @@ func TestConfig_Complete(t *testing.T) {
 	if cfg.Agents.Defaults.Temperature != nil {
 		t.Error("Temperature should be nil when not provided")
 	}
-	if cfg.Agents.Defaults.MaxTokens == 0 {
-		t.Error("MaxTokens should not be zero")
+	if cfg.Agents.Defaults.MaxOutputTokens == 0 {
+		t.Error("MaxOutputTokens should not be zero")
+	}
+	if cfg.Agents.Defaults.ContextWindow == 0 {
+		t.Error("ContextWindow should not be zero")
 	}
 	if cfg.Agents.Defaults.MaxToolIterations == 0 {
 		t.Error("MaxToolIterations should not be zero")
@@ -409,7 +426,7 @@ func TestLoadConfig_WebToolsProxy(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.json")
 	configJSON := `{
-  "agents": {"defaults":{"workspace":"./workspace","model":"gpt4","max_tokens":8192,"max_tool_iterations":20}},
+  "agents": {"defaults":{"workspace":"./workspace","model":"gpt4","max_output_tokens":8192,"context_window":8192,"max_tool_iterations":20}},
   "model_list": [{"model_name":"gpt4","model":"openai/gpt-5.2","api_key":"x"}],
   "tools": {"web":{"proxy":"http://127.0.0.1:7890"}}
 }`
@@ -423,6 +440,49 @@ func TestLoadConfig_WebToolsProxy(t *testing.T) {
 	}
 	if cfg.Tools.Web.Proxy != "http://127.0.0.1:7890" {
 		t.Fatalf("Tools.Web.Proxy = %q, want %q", cfg.Tools.Web.Proxy, "http://127.0.0.1:7890")
+	}
+}
+
+func TestLoadConfig_AgentDefaults_LegacyMaxTokensCompat(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+	configJSON := `{
+  "agents": {"defaults":{"workspace":"./workspace","model":"gpt4","max_tokens":4096,"max_tool_iterations":20}},
+  "model_list": [{"model_name":"gpt4","model":"openai/gpt-5.2","api_key":"x"}]
+}`
+	if err := os.WriteFile(configPath, []byte(configJSON), 0o600); err != nil {
+		t.Fatalf("os.WriteFile() error: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+	if cfg.Agents.Defaults.GetMaxOutputTokens() != 4096 {
+		t.Fatalf("GetMaxOutputTokens = %d, want %d", cfg.Agents.Defaults.GetMaxOutputTokens(), 4096)
+	}
+}
+
+func TestLoadConfig_AgentDefaults_ContextWindow(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+	configJSON := `{
+  "agents": {"defaults":{"workspace":"./workspace","model":"gpt4","max_output_tokens":4096,"context_window":20000,"max_tool_iterations":20}},
+  "model_list": [{"model_name":"gpt4","model":"openai/gpt-5.2","api_key":"x"}]
+}`
+	if err := os.WriteFile(configPath, []byte(configJSON), 0o600); err != nil {
+		t.Fatalf("os.WriteFile() error: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+	if cfg.Agents.Defaults.GetMaxOutputTokens() != 4096 {
+		t.Fatalf("GetMaxOutputTokens = %d, want %d", cfg.Agents.Defaults.GetMaxOutputTokens(), 4096)
+	}
+	if cfg.Agents.Defaults.GetContextWindow() != 20000 {
+		t.Fatalf("GetContextWindow = %d, want %d", cfg.Agents.Defaults.GetContextWindow(), 20000)
 	}
 }
 

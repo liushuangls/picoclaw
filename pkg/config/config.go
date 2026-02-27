@@ -175,7 +175,9 @@ type AgentDefaults struct {
 	ModelFallbacks      []string `json:"model_fallbacks,omitempty"`
 	ImageModel          string   `json:"image_model,omitempty"           env:"PICOCLAW_AGENTS_DEFAULTS_IMAGE_MODEL"`
 	ImageModelFallbacks []string `json:"image_model_fallbacks,omitempty"`
-	MaxTokens           int      `json:"max_tokens"                      env:"PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS"`
+	MaxOutputTokens     int      `json:"max_output_tokens"               env:"PICOCLAW_AGENTS_DEFAULTS_MAX_OUTPUT_TOKENS"`
+	MaxTokens           int      `json:"max_tokens,omitempty"` // Deprecated: use max_output_tokens instead
+	ContextWindow       int      `json:"context_window,omitempty"        env:"PICOCLAW_AGENTS_DEFAULTS_CONTEXT_WINDOW"`
 	Temperature         *float64 `json:"temperature,omitempty"           env:"PICOCLAW_AGENTS_DEFAULTS_TEMPERATURE"`
 	MaxToolIterations   int      `json:"max_tool_iterations"             env:"PICOCLAW_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
 }
@@ -187,6 +189,46 @@ func (d *AgentDefaults) GetModelName() string {
 		return d.ModelName
 	}
 	return d.Model
+}
+
+func (d *AgentDefaults) GetMaxOutputTokens() int {
+	if d.MaxOutputTokens > 0 {
+		return d.MaxOutputTokens
+	}
+	if d.MaxTokens > 0 {
+		return d.MaxTokens
+	}
+	return 8192
+}
+
+func (d *AgentDefaults) GetContextWindow() int {
+	if d.ContextWindow > 0 {
+		return d.ContextWindow
+	}
+	return 128000
+}
+
+func (d *AgentDefaults) UnmarshalJSON(data []byte) error {
+	type alias AgentDefaults
+
+	raw := map[string]json.RawMessage{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	decoded := alias(*d)
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	if _, hasNew := raw["max_output_tokens"]; !hasNew {
+		if _, hasOld := raw["max_tokens"]; hasOld && decoded.MaxTokens > 0 {
+			decoded.MaxOutputTokens = decoded.MaxTokens
+		}
+	}
+
+	*d = AgentDefaults(decoded)
+	return nil
 }
 
 type ChannelsConfig struct {

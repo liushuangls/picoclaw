@@ -765,7 +765,8 @@ Subagent có quyền truy cập các công cụ (message, web_search, v.v.) và 
     "defaults": {
       "workspace": "~/.picoclaw/workspace",
       "model": "glm-4.7",
-      "max_tokens": 8192,
+      "max_output_tokens": 8192,
+      "context_window": 128000,
       "temperature": 0.7,
       "max_tool_iterations": 20
     }

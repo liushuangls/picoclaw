@@ -797,7 +797,8 @@ Le sous-agent a accès aux outils (message, web_search, etc.) et peut communique
     "defaults": {
       "workspace": "~/.picoclaw/workspace",
       "model": "glm-4.7",
-      "max_tokens": 8192,
+      "max_output_tokens": 8192,
+      "context_window": 128000,
       "temperature": 0.7,
       "max_tool_iterations": 20
     }

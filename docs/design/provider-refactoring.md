@@ -106,7 +106,8 @@ Inspired by [LiteLLM](https://docs.litellm.ai/docs/proxy/configs) design:
   "agents": {
     "defaults": {
       "model": "deepseek-chat",
-      "max_tokens": 8192,
+      "max_output_tokens": 8192,
+      "context_window": 128000,
       "temperature": 0.7
     }
   }

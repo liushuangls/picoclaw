@@ -153,7 +153,7 @@ func registerSharedTools(
 
 		// Spawn tool with allowlist checker
 		subagentManager := tools.NewSubagentManager(provider, agent.Model, agent.Workspace, msgBus)
-		subagentManager.SetLLMOptions(agent.MaxTokens, agent.Temperature)
+		subagentManager.SetLLMOptions(agent.MaxOutputTokens, agent.Temperature)
 		spawnTool := tools.NewSpawnTool(subagentManager)
 		currentAgentID := agentID
 		spawnTool.SetAllowlistChecker(func(targetAgentID string) bool {
@@ -510,7 +510,7 @@ func (al *AgentLoop) runLLMIteration(
 				"model":             agent.Model,
 				"messages_count":    len(messages),
 				"tools_count":       len(providerToolDefs),
-				"max_tokens":        agent.MaxTokens,
+				"max_tokens":        agent.MaxOutputTokens,
 				"temperature":       agent.Temperature,
 				"system_prompt_len": len(messages[0].Content),
 			})
@@ -532,7 +532,7 @@ func (al *AgentLoop) runLLMIteration(
 				fbResult, fbErr := al.fallback.Execute(ctx, agent.Candidates,
 					func(ctx context.Context, provider, model string) (*providers.LLMResponse, error) {
 						return agent.Provider.Chat(ctx, messages, providerToolDefs, model, map[string]any{
-							"max_tokens":       agent.MaxTokens,
+							"max_tokens":       agent.MaxOutputTokens,
 							"temperature":      agent.Temperature,
 							"prompt_cache_key": agent.ID,
 						})
@@ -549,7 +549,7 @@ func (al *AgentLoop) runLLMIteration(
 				return fbResult.Response, nil
 			}
 			return agent.Provider.Chat(ctx, messages, providerToolDefs, agent.Model, map[string]any{
-				"max_tokens":       agent.MaxTokens,
+				"max_tokens":       agent.MaxOutputTokens,
 				"temperature":      agent.Temperature,
 				"prompt_cache_key": agent.ID,
 			})

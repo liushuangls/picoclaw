@@ -7,7 +7,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/config"
 )
 
-func TestNewAgentInstance_UsesDefaultsTemperatureAndMaxTokens(t *testing.T) {
+func TestNewAgentInstance_UsesDefaultsTemperatureAndMaxOutputTokens(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "agent-instance-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -19,7 +19,8 @@ func TestNewAgentInstance_UsesDefaultsTemperatureAndMaxTokens(t *testing.T) {
 			Defaults: config.AgentDefaults{
 				Workspace:         tmpDir,
 				Model:             "test-model",
-				MaxTokens:         1234,
+				MaxOutputTokens:   1234,
+				ContextWindow:     5678,
 				MaxToolIterations: 5,
 			},
 		},
@@ -31,8 +32,11 @@ func TestNewAgentInstance_UsesDefaultsTemperatureAndMaxTokens(t *testing.T) {
 	provider := &mockProvider{}
 	agent := NewAgentInstance(nil, &cfg.Agents.Defaults, cfg, provider)
 
-	if agent.MaxTokens != 1234 {
-		t.Fatalf("MaxTokens = %d, want %d", agent.MaxTokens, 1234)
+	if agent.MaxOutputTokens != 1234 {
+		t.Fatalf("MaxOutputTokens = %d, want %d", agent.MaxOutputTokens, 1234)
+	}
+	if agent.ContextWindow != 5678 {
+		t.Fatalf("ContextWindow = %d, want %d", agent.ContextWindow, 5678)
 	}
 	if agent.Temperature != 1.0 {
 		t.Fatalf("Temperature = %f, want %f", agent.Temperature, 1.0)
@@ -51,7 +55,7 @@ func TestNewAgentInstance_DefaultsTemperatureWhenZero(t *testing.T) {
 			Defaults: config.AgentDefaults{
 				Workspace:         tmpDir,
 				Model:             "test-model",
-				MaxTokens:         1234,
+				MaxOutputTokens:   1234,
 				MaxToolIterations: 5,
 			},
 		},
@@ -80,7 +84,7 @@ func TestNewAgentInstance_DefaultsTemperatureWhenUnset(t *testing.T) {
 			Defaults: config.AgentDefaults{
 				Workspace:         tmpDir,
 				Model:             "test-model",
-				MaxTokens:         1234,
+				MaxOutputTokens:   1234,
 				MaxToolIterations: 5,
 			},
 		},
@@ -91,5 +95,8 @@ func TestNewAgentInstance_DefaultsTemperatureWhenUnset(t *testing.T) {
 
 	if agent.Temperature != 0.7 {
 		t.Fatalf("Temperature = %f, want %f", agent.Temperature, 0.7)
+	}
+	if agent.ContextWindow != 128000 {
+		t.Fatalf("ContextWindow = %d, want %d", agent.ContextWindow, 128000)
 	}
 }

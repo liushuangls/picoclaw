@@ -79,8 +79,13 @@ func ConvertConfig(data map[string]any) (*config.Config, []string, error) {
 			} else if v, ok := getString(defaults, "model"); ok {
 				cfg.Agents.Defaults.Model = v
 			}
-			if v, ok := getFloat(defaults, "max_tokens"); ok {
-				cfg.Agents.Defaults.MaxTokens = int(v)
+			if v, ok := getFloat(defaults, "max_output_tokens"); ok {
+				cfg.Agents.Defaults.MaxOutputTokens = int(v)
+			} else if v, ok := getFloat(defaults, "max_tokens"); ok {
+				cfg.Agents.Defaults.MaxOutputTokens = int(v)
+			}
+			if v, ok := getFloat(defaults, "context_window"); ok {
+				cfg.Agents.Defaults.ContextWindow = int(v)
 			}
 			if v, ok := getFloat(defaults, "temperature"); ok {
 				cfg.Agents.Defaults.Temperature = &v

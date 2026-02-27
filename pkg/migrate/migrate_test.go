@@ -272,8 +272,8 @@ func TestConvertConfig(t *testing.T) {
 		if cfg.Agents.Defaults.Model != "claude-3-opus" {
 			t.Errorf("Model = %q, want %q", cfg.Agents.Defaults.Model, "claude-3-opus")
 		}
-		if cfg.Agents.Defaults.MaxTokens != 4096 {
-			t.Errorf("MaxTokens = %d, want %d", cfg.Agents.Defaults.MaxTokens, 4096)
+		if cfg.Agents.Defaults.MaxOutputTokens != 4096 {
+			t.Errorf("MaxOutputTokens = %d, want %d", cfg.Agents.Defaults.MaxOutputTokens, 4096)
 		}
 		if cfg.Agents.Defaults.Temperature == nil {
 			t.Fatalf("Temperature is nil, want %f", 0.5)
