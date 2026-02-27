@@ -115,7 +115,12 @@ func registerSharedTools(
 			agent.Tools.Register(searchTool)
 		}
 		agent.Tools.Register(
-			tools.NewWebFetchToolWithProxyAndBigModel(50000, cfg.Tools.Web.Proxy, cfg.Providers.Zhipu.APIKey),
+			tools.NewWebFetchToolWithProxyAndBigModelConfig(
+				100000,
+				cfg.Tools.Web.Proxy,
+				cfg.Tools.WebFetch.BigModelAPIKey,
+				cfg.Tools.WebFetch.BigModelReaderURL,
+			),
 		)
 
 		// Hardware tools (I2C, SPI) - Linux only, returns error on other platforms

@@ -299,6 +299,10 @@ func DefaultConfig() *Config {
 					MaxResults: 5,
 				},
 			},
+			WebFetch: WebFetchConfig{
+				BigModelAPIKey:    "",
+				BigModelReaderURL: "",
+			},
 			Cron: CronToolsConfig{
 				ExecTimeoutMinutes: 5,
 			},

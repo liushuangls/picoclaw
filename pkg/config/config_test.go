@@ -304,6 +304,12 @@ func TestDefaultConfig_WebTools(t *testing.T) {
 	if cfg.Tools.Web.Serper.APIKey != "" {
 		t.Error("Serper API key should be empty by default")
 	}
+	if cfg.Tools.WebFetch.BigModelAPIKey != "" {
+		t.Error("WebFetch BigModel API key should be empty by default")
+	}
+	if cfg.Tools.WebFetch.BigModelReaderURL != "" {
+		t.Error("WebFetch BigModel Reader URL should be empty by default")
+	}
 }
 
 func TestSaveConfig_FilePermissions(t *testing.T) {

@@ -226,6 +226,10 @@
       },
       "proxy": ""
     },
+    "web_fetch": {
+      "bigmodel_api_key": "",
+      "bigmodel_reader_url": ""
+    },
     "cron": {
       "exec_timeout_minutes": 5
     },

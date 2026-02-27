@@ -472,16 +472,22 @@ type CronToolsConfig struct {
 	ExecTimeoutMinutes int `json:"exec_timeout_minutes" env:"PICOCLAW_TOOLS_CRON_EXEC_TIMEOUT_MINUTES"` // 0 means no timeout
 }
 
+type WebFetchConfig struct {
+	BigModelAPIKey    string `json:"bigmodel_api_key,omitempty"    env:"PICOCLAW_TOOLS_WEB_FETCH_BIGMODEL_API_KEY"`
+	BigModelReaderURL string `json:"bigmodel_reader_url,omitempty" env:"PICOCLAW_TOOLS_WEB_FETCH_BIGMODEL_READER_URL"`
+}
+
 type ExecConfig struct {
 	EnableDenyPatterns bool     `json:"enable_deny_patterns" env:"PICOCLAW_TOOLS_EXEC_ENABLE_DENY_PATTERNS"`
 	CustomDenyPatterns []string `json:"custom_deny_patterns" env:"PICOCLAW_TOOLS_EXEC_CUSTOM_DENY_PATTERNS"`
 }
 
 type ToolsConfig struct {
-	Web    WebToolsConfig    `json:"web"`
-	Cron   CronToolsConfig   `json:"cron"`
-	Exec   ExecConfig        `json:"exec"`
-	Skills SkillsToolsConfig `json:"skills"`
+	Web      WebToolsConfig    `json:"web"`
+	WebFetch WebFetchConfig    `json:"web_fetch,omitempty"`
+	Cron     CronToolsConfig   `json:"cron"`
+	Exec     ExecConfig        `json:"exec"`
+	Skills   SkillsToolsConfig `json:"skills"`
 }
 
 type SkillsToolsConfig struct {

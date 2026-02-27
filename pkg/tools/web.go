@@ -537,26 +537,37 @@ type webFetcherResult struct {
 }
 
 func NewWebFetchTool(maxChars int) *WebFetchTool {
-	return newWebFetchTool(maxChars, "", "")
+	return newWebFetchTool(maxChars, "", "", "")
 }
 
 func NewWebFetchToolWithProxy(maxChars int, proxy string) *WebFetchTool {
-	return newWebFetchTool(maxChars, proxy, "")
+	return newWebFetchTool(maxChars, proxy, "", "")
 }
 
 func NewWebFetchToolWithProxyAndBigModel(maxChars int, proxy, bigModelAPIKey string) *WebFetchTool {
-	return newWebFetchTool(maxChars, proxy, bigModelAPIKey)
+	return newWebFetchTool(maxChars, proxy, bigModelAPIKey, "")
 }
 
-func newWebFetchTool(maxChars int, proxy, bigModelAPIKey string) *WebFetchTool {
+func NewWebFetchToolWithProxyAndBigModelConfig(
+	maxChars int,
+	proxy, bigModelAPIKey, bigModelReaderURL string,
+) *WebFetchTool {
+	return newWebFetchTool(maxChars, proxy, bigModelAPIKey, bigModelReaderURL)
+}
+
+func newWebFetchTool(maxChars int, proxy, bigModelAPIKey, bigModelReaderURL string) *WebFetchTool {
 	if maxChars <= 0 {
 		maxChars = 50000
+	}
+	readerURL := strings.TrimSpace(bigModelReaderURL)
+	if readerURL == "" {
+		readerURL = bigModelReaderAPIURL
 	}
 	return &WebFetchTool{
 		maxChars:          maxChars,
 		proxy:             proxy,
 		bigModelAPIKey:    strings.TrimSpace(bigModelAPIKey),
-		bigModelReaderURL: bigModelReaderAPIURL,
+		bigModelReaderURL: readerURL,
 	}
 }
 

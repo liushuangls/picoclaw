@@ -21,12 +21,13 @@ Web tools are used for web search and fetching.
 
 ### Web Fetch Fallback (BigModel)
 
-If `providers.zhipu.api_key` is configured, `web_fetch` will try BigModel Reader API
+If `tools.web_fetch.bigmodel_api_key` is configured, `web_fetch` will try BigModel Reader API
 (`POST /api/paas/v4/reader`) first, then fall back to direct URL fetching when needed.
 
 | Config Path | Type | Description |
 |-------------|------|-------------|
-| `providers.zhipu.api_key` | string | BigModel API key used by `web_fetch` fallback |
+| `tools.web_fetch.bigmodel_api_key` | string | BigModel API key used by `web_fetch` fallback |
+| `tools.web_fetch.bigmodel_reader_url` | string | Optional custom Reader endpoint (default uses official URL) |
 
 ### Brave
 
