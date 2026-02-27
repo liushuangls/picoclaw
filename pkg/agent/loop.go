@@ -1017,7 +1017,7 @@ func (al *AgentLoop) summarizeBatch(
 		nil,
 		agent.Model,
 		map[string]any{
-			"max_tokens":       16000,
+			"max_tokens":       agent.MaxOutputTokens,
 			"temperature":      0.3,
 			"prompt_cache_key": agent.ID,
 		},
