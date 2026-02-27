@@ -917,7 +917,7 @@ func (al *AgentLoop) summarizeSession(agent *AgentInstance, sessionKey string) {
 	history := agent.Sessions.GetHistory(sessionKey)
 	summary := agent.Sessions.GetSummary(sessionKey)
 
-	minKeepHistory := 6
+	minKeepHistory := 10
 
 	// Keep last 4 messages for continuity
 	if len(history) <= minKeepHistory {
