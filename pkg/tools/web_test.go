@@ -846,13 +846,10 @@ func TestBigModelReaderFetcher_RealRequest(t *testing.T) {
 
 	apiKey := strings.TrimSpace(os.Getenv("BIGMODEL_API_KEY"))
 	if apiKey == "" {
-		apiKey = strings.TrimSpace(os.Getenv("ZHIPU_API_KEY"))
+		apiKey = strings.TrimSpace(os.Getenv("PICOCLAW_TOOLS_WEB_FETCH_BIGMODEL_API_KEY"))
 	}
 	if apiKey == "" {
-		apiKey = strings.TrimSpace(os.Getenv("PICOCLAW_PROVIDERS_ZHIPU_API_KEY"))
-	}
-	if apiKey == "" {
-		t.Skip("BIGMODEL_API_KEY / ZHIPU_API_KEY / PICOCLAW_PROVIDERS_ZHIPU_API_KEY is empty")
+		t.Skip("BIGMODEL_API_KEY / PICOCLAW_TOOLS_WEB_FETCH_BIGMODEL_API_KEY is empty")
 	}
 
 	fetcher := &bigModelReaderFetcher{
