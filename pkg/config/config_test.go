@@ -298,6 +298,12 @@ func TestDefaultConfig_WebTools(t *testing.T) {
 	if cfg.Tools.Web.DuckDuckGo.MaxResults != 5 {
 		t.Error("Expected DuckDuckGo MaxResults 5, got ", cfg.Tools.Web.DuckDuckGo.MaxResults)
 	}
+	if cfg.Tools.Web.Serper.MaxResults != 5 {
+		t.Error("Expected Serper MaxResults 5, got ", cfg.Tools.Web.Serper.MaxResults)
+	}
+	if cfg.Tools.Web.Serper.APIKey != "" {
+		t.Error("Serper API key should be empty by default")
+	}
 }
 
 func TestSaveConfig_FilePermissions(t *testing.T) {

@@ -283,6 +283,12 @@ func DefaultConfig() *Config {
 					APIKey:     "",
 					MaxResults: 5,
 				},
+				Serper: SerperConfig{
+					Enabled:    false,
+					APIKey:     "",
+					BaseURL:    "https://google.serper.dev",
+					MaxResults: 5,
+				},
 				DuckDuckGo: DuckDuckGoConfig{
 					Enabled:    true,
 					MaxResults: 5,

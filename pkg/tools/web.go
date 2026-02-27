@@ -400,6 +400,10 @@ type WebSearchTool struct {
 }
 
 type WebSearchToolOptions struct {
+	SerperAPIKey         string
+	SerperBaseURL        string
+	SerperMaxResults     int
+	SerperEnabled        bool
 	BraveAPIKey          string
 	BraveMaxResults      int
 	BraveEnabled         bool
@@ -419,8 +423,17 @@ func NewWebSearchTool(opts WebSearchToolOptions) *WebSearchTool {
 	var provider SearchProvider
 	maxResults := 5
 
-	// Priority: Perplexity > Brave > Tavily > DuckDuckGo
-	if opts.PerplexityEnabled && opts.PerplexityAPIKey != "" {
+	// 优先级：Serper > Perplexity > Brave > Tavily > DuckDuckGo
+	if opts.SerperEnabled && opts.SerperAPIKey != "" {
+		provider = &SerperSearchProvider{
+			apiKey:  opts.SerperAPIKey,
+			baseURL: opts.SerperBaseURL,
+			proxy:   opts.Proxy,
+		}
+		if opts.SerperMaxResults > 0 {
+			maxResults = opts.SerperMaxResults
+		}
+	} else if opts.PerplexityEnabled && opts.PerplexityAPIKey != "" {
 		provider = &PerplexitySearchProvider{apiKey: opts.PerplexityAPIKey, proxy: opts.Proxy}
 		if opts.PerplexityMaxResults > 0 {
 			maxResults = opts.PerplexityMaxResults

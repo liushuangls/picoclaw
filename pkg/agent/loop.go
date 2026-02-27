@@ -94,6 +94,10 @@ func registerSharedTools(
 
 		// Web tools
 		if searchTool := tools.NewWebSearchTool(tools.WebSearchToolOptions{
+			SerperAPIKey:         cfg.Tools.Web.Serper.APIKey,
+			SerperBaseURL:        cfg.Tools.Web.Serper.BaseURL,
+			SerperMaxResults:     cfg.Tools.Web.Serper.MaxResults,
+			SerperEnabled:        cfg.Tools.Web.Serper.Enabled,
 			BraveAPIKey:          cfg.Tools.Web.Brave.APIKey,
 			BraveMaxResults:      cfg.Tools.Web.Brave.MaxResults,
 			BraveEnabled:         cfg.Tools.Web.Brave.Enabled,

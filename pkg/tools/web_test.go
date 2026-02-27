@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -453,6 +454,23 @@ func TestNewWebFetchToolWithProxy(t *testing.T) {
 }
 
 func TestNewWebSearchTool_PropagatesProxy(t *testing.T) {
+	t.Run("serper", func(t *testing.T) {
+		tool := NewWebSearchTool(WebSearchToolOptions{
+			SerperEnabled:    true,
+			SerperAPIKey:     "k",
+			SerperBaseURL:    "https://google.serper.dev",
+			SerperMaxResults: 3,
+			Proxy:            "http://127.0.0.1:7890",
+		})
+		p, ok := tool.provider.(*SerperSearchProvider)
+		if !ok {
+			t.Fatalf("provider type = %T, want *SerperSearchProvider", tool.provider)
+		}
+		if p.proxy != "http://127.0.0.1:7890" {
+			t.Fatalf("provider proxy = %q, want %q", p.proxy, "http://127.0.0.1:7890")
+		}
+	})
+
 	t.Run("perplexity", func(t *testing.T) {
 		tool := NewWebSearchTool(WebSearchToolOptions{
 			PerplexityEnabled:    true,
@@ -499,6 +517,26 @@ func TestNewWebSearchTool_PropagatesProxy(t *testing.T) {
 			t.Fatalf("provider proxy = %q, want %q", p.proxy, "http://127.0.0.1:7890")
 		}
 	})
+}
+
+func TestNewWebSearchTool_PrefersSerper(t *testing.T) {
+	tool := NewWebSearchTool(WebSearchToolOptions{
+		SerperEnabled:        true,
+		SerperAPIKey:         "serper-key",
+		PerplexityEnabled:    true,
+		PerplexityAPIKey:     "perplexity-key",
+		BraveEnabled:         true,
+		BraveAPIKey:          "brave-key",
+		DuckDuckGoEnabled:    true,
+		DuckDuckGoMaxResults: 3,
+	})
+	p, ok := tool.provider.(*SerperSearchProvider)
+	if !ok {
+		t.Fatalf("provider type = %T, want *SerperSearchProvider", tool.provider)
+	}
+	if p.apiKey != "serper-key" {
+		t.Fatalf("provider apiKey = %q, want %q", p.apiKey, "serper-key")
+	}
 }
 
 // TestWebTool_TavilySearch_Success verifies successful Tavily search
@@ -571,4 +609,110 @@ func TestWebTool_TavilySearch_Success(t *testing.T) {
 	if !strings.Contains(result.ForUser, "via Tavily") {
 		t.Errorf("Expected 'via Tavily' in output, got: %s", result.ForUser)
 	}
+}
+
+func TestWebTool_SerperSearch_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST request, got %s", r.Method)
+		}
+		if r.URL.Path != "/search" {
+			t.Errorf("Expected path /search, got %s", r.URL.Path)
+		}
+		if r.Header.Get("X-API-KEY") != "serper-key" {
+			t.Errorf("Expected X-API-KEY serper-key, got %s", r.Header.Get("X-API-KEY"))
+		}
+		if ct := r.Header.Get("Content-Type"); !strings.Contains(ct, "application/json") {
+			t.Errorf("Expected Content-Type application/json, got %s", ct)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("Failed to decode payload: %v", err)
+		}
+		if payload["q"] != "test query" {
+			t.Errorf("Expected query 'test query', got %v", payload["q"])
+		}
+		if payload["num"] != float64(4) {
+			t.Errorf("Expected num 4, got %v", payload["num"])
+		}
+
+		response := map[string]any{
+			"organic": []map[string]any{
+				{
+					"title":   "Serper Result 1",
+					"link":    "https://example.com/1",
+					"snippet": "Serper snippet 1",
+				},
+				{
+					"title":   "Serper Result 2",
+					"link":    "https://example.com/2",
+					"snippet": "Serper snippet 2",
+				},
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	tool := NewWebSearchTool(WebSearchToolOptions{
+		SerperEnabled:    true,
+		SerperAPIKey:     "serper-key",
+		SerperBaseURL:    server.URL,
+		SerperMaxResults: 4,
+	})
+
+	ctx := context.Background()
+	args := map[string]any{
+		"query": "test query",
+	}
+
+	result := tool.Execute(ctx, args)
+
+	if result.IsError {
+		t.Errorf("Expected success, got IsError=true: %s", result.ForLLM)
+	}
+	if !strings.Contains(result.ForUser, "via Serper") {
+		t.Errorf("Expected 'via Serper' in output, got: %s", result.ForUser)
+	}
+	if !strings.Contains(result.ForUser, "Serper Result 1") ||
+		!strings.Contains(result.ForUser, "https://example.com/1") {
+		t.Errorf("Expected Serper result in output, got: %s", result.ForUser)
+	}
+}
+
+func TestWebTool_SerperSearch_RealRequest(t *testing.T) {
+	apiKey := strings.TrimSpace(os.Getenv("SERPER_API_KEY"))
+	if apiKey == "" {
+		t.Skip("SERPER_API_KEY is empty")
+	}
+
+	tool := NewWebSearchTool(WebSearchToolOptions{
+		SerperEnabled:    true,
+		SerperAPIKey:     apiKey,
+		SerperMaxResults: 5,
+	})
+	if tool == nil {
+		t.Fatal("NewWebSearchTool returned nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	result := tool.Execute(ctx, map[string]any{
+		"query": "golang context package tutorial",
+	})
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", result.ForLLM)
+	}
+	if !strings.Contains(result.ForUser, "via Serper") {
+		t.Fatalf("expected output contains via Serper, got: %s", result.ForUser)
+	}
+	if !strings.Contains(result.ForUser, "http") {
+		t.Fatalf("expected output contains link, got: %s", result.ForUser)
+	}
+	t.Logf("Serper search result:\n%s", result.ForUser)
 }

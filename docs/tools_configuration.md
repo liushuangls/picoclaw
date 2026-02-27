@@ -27,6 +27,15 @@ Web tools are used for web search and fetching.
 | `api_key` | string | - | Brave Search API key |
 | `max_results` | int | 5 | Maximum number of results |
 
+### Serper
+
+| Config | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | bool | false | Enable Serper search |
+| `api_key` | string | - | Serper API key |
+| `base_url` | string | `https://google.serper.dev` | Serper API base URL |
+| `max_results` | int | 5 | Maximum number of results |
+
 ### DuckDuckGo
 
 | Config | Type | Default | Description |
