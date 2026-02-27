@@ -519,26 +519,44 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) *ToolR
 }
 
 type WebFetchTool struct {
-	maxChars int
-	proxy    string
+	maxChars          int
+	proxy             string
+	bigModelAPIKey    string
+	bigModelReaderURL string
+}
+
+type webFetcher interface {
+	Fetch(ctx context.Context, urlStr string) (*webFetcherResult, error)
+}
+
+type webFetcherResult struct {
+	URL       string
+	Status    int
+	Extractor string
+	Text      string
 }
 
 func NewWebFetchTool(maxChars int) *WebFetchTool {
-	if maxChars <= 0 {
-		maxChars = 50000
-	}
-	return &WebFetchTool{
-		maxChars: maxChars,
-	}
+	return newWebFetchTool(maxChars, "", "")
 }
 
 func NewWebFetchToolWithProxy(maxChars int, proxy string) *WebFetchTool {
+	return newWebFetchTool(maxChars, proxy, "")
+}
+
+func NewWebFetchToolWithProxyAndBigModel(maxChars int, proxy, bigModelAPIKey string) *WebFetchTool {
+	return newWebFetchTool(maxChars, proxy, bigModelAPIKey)
+}
+
+func newWebFetchTool(maxChars int, proxy, bigModelAPIKey string) *WebFetchTool {
 	if maxChars <= 0 {
 		maxChars = 50000
 	}
 	return &WebFetchTool{
-		maxChars: maxChars,
-		proxy:    proxy,
+		maxChars:          maxChars,
+		proxy:             proxy,
+		bigModelAPIKey:    strings.TrimSpace(bigModelAPIKey),
+		bigModelReaderURL: bigModelReaderAPIURL,
 	}
 }
 
@@ -594,89 +612,121 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
-	if err != nil {
-		return ErrorResult(fmt.Sprintf("failed to create request: %v", err))
-	}
+	fetchers := t.buildFetchers()
+	failReasons := make([]string, 0, len(fetchers))
 
-	req.Header.Set("User-Agent", userAgent)
-
-	client, err := createHTTPClient(t.proxy, 60*time.Second)
-	if err != nil {
-		return ErrorResult(fmt.Sprintf("failed to create HTTP client: %v", err))
-	}
-
-	// Configure redirect handling
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 5 {
-			return fmt.Errorf("stopped after 5 redirects")
+	for _, fetcher := range fetchers {
+		fetched, err := fetcher.Fetch(ctx, urlStr)
+		if err != nil {
+			failReasons = append(failReasons, err.Error())
+			continue
 		}
-		return nil
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return ErrorResult(fmt.Sprintf("request failed: %v", err))
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return ErrorResult(fmt.Sprintf("failed to read response: %v", err))
-	}
-
-	contentType := resp.Header.Get("Content-Type")
-
-	var text, extractor string
-
-	if strings.Contains(contentType, "application/json") {
-		var jsonData any
-		if err := json.Unmarshal(body, &jsonData); err == nil {
-			formatted, _ := json.MarshalIndent(jsonData, "", "  ")
-			text = string(formatted)
-			extractor = "json"
-		} else {
-			text = string(body)
-			extractor = "raw"
+		if fetched == nil {
+			failReasons = append(failReasons, "fetcher returned nil result")
+			continue
 		}
-	} else if strings.Contains(contentType, "text/html") || len(body) > 0 &&
-		(strings.HasPrefix(string(body), "<!DOCTYPE") || strings.HasPrefix(strings.ToLower(string(body)), "<html")) {
-		text = t.extractText(string(body))
-		extractor = "text"
-	} else {
-		text = string(body)
-		extractor = "raw"
+		return t.toToolResult(urlStr, maxChars, fetched, failReasons)
 	}
 
+	if len(failReasons) == 0 {
+		return ErrorResult("request failed: no available fetchers")
+	}
+	return ErrorResult(fmt.Sprintf("request failed: %s", strings.Join(failReasons, "; ")))
+}
+
+func (t *WebFetchTool) buildFetchers() []webFetcher {
+	if t.hasBigModelFallback() {
+		return []webFetcher{
+			&bigModelReaderFetcher{
+				apiKey:    t.bigModelAPIKey,
+				readerURL: t.bigModelReaderURL,
+				proxy:     t.proxy,
+			},
+			&directWebFetcher{
+				proxy:         t.proxy,
+				failOnNon2xx:  false,
+				redirectLimit: 5,
+			},
+		}
+	}
+
+	return []webFetcher{
+		&directWebFetcher{
+			proxy:         t.proxy,
+			failOnNon2xx:  false,
+			redirectLimit: 5,
+		},
+	}
+}
+
+func (t *WebFetchTool) hasBigModelFallback() bool {
+	return strings.TrimSpace(t.bigModelAPIKey) != ""
+}
+
+func (t *WebFetchTool) toToolResult(
+	requestURL string,
+	maxChars int,
+	fetched *webFetcherResult,
+	failReasons []string,
+) *ToolResult {
+	resultURL := strings.TrimSpace(fetched.URL)
+	if resultURL == "" {
+		resultURL = requestURL
+	}
+
+	text := fetched.Text
 	truncated := len(text) > maxChars
 	if truncated {
 		text = text[:maxChars]
 	}
 
+	status := fetched.Status
+	if status == 0 {
+		status = http.StatusOK
+	}
+
 	result := map[string]any{
-		"url":       urlStr,
-		"status":    resp.StatusCode,
-		"extractor": extractor,
+		"url":       resultURL,
+		"status":    status,
+		"extractor": fetched.Extractor,
 		"truncated": truncated,
 		"length":    len(text),
 		"text":      text,
 	}
+	if len(failReasons) > 0 {
+		result["fallback_reason"] = failReasons[0]
+	}
 
 	resultJSON, _ := json.MarshalIndent(result, "", "  ")
 
-	return &ToolResult{
-		ForLLM: fmt.Sprintf(
-			"Fetched %d bytes from %s (extractor: %s, truncated: %v)",
+	summary := fmt.Sprintf(
+		"Fetched %d bytes from %s (extractor: %s, truncated: %v)",
+		len(text),
+		resultURL,
+		fetched.Extractor,
+		truncated,
+	)
+	if len(failReasons) > 0 {
+		summary = fmt.Sprintf(
+			"Fetched %d bytes from %s (extractor: %s, truncated: %v, fallback: true)",
 			len(text),
-			urlStr,
-			extractor,
+			resultURL,
+			fetched.Extractor,
 			truncated,
-		),
+		)
+	}
+
+	return &ToolResult{
+		ForLLM:  summary,
 		ForUser: string(resultJSON),
 	}
 }
 
 func (t *WebFetchTool) extractText(htmlContent string) string {
+	return extractWebText(htmlContent)
+}
+
+func extractWebText(htmlContent string) string {
 	result := reScript.ReplaceAllLiteralString(htmlContent, "")
 	result = reStyle.ReplaceAllLiteralString(result, "")
 	result = reTags.ReplaceAllLiteralString(result, "")

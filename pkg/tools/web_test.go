@@ -336,6 +336,100 @@ func TestWebTool_WebFetch_MissingDomain(t *testing.T) {
 	}
 }
 
+func TestWebTool_WebFetch_FallbackToBigModelOnRequestFailure(t *testing.T) {
+	var seenAuthorization string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenAuthorization = r.Header.Get("Authorization")
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST request, got %s", r.Method)
+		}
+		if r.URL.Path != "/reader" {
+			t.Errorf("Expected path /reader, got %s", r.URL.Path)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode payload failed: %v", err)
+		}
+		if payload["url"] != "http://127.0.0.1:1" {
+			t.Errorf("Expected payload url, got %v", payload["url"])
+		}
+
+		resp := map[string]any{
+			"id":         "rdr_123",
+			"created":    123,
+			"request_id": "req_123",
+			"model":      "reader",
+			"reader_result": map[string]any{
+				"title":       "Fallback Page",
+				"url":         "https://example.com/fallback",
+				"description": "Fallback description",
+				"content":     "Fallback content from BigModel",
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	tool := &WebFetchTool{
+		maxChars:          50000,
+		bigModelAPIKey:    "test-zhipu-key",
+		bigModelReaderURL: server.URL + "/reader",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result := tool.Execute(ctx, map[string]any{
+		"url": "http://127.0.0.1:1",
+	})
+
+	if result.IsError {
+		t.Fatalf("Expected fallback success, got error: %s", result.ForLLM)
+	}
+	if seenAuthorization != "Bearer test-zhipu-key" {
+		t.Fatalf("Authorization header = %q, want %q", seenAuthorization, "Bearer test-zhipu-key")
+	}
+	if !strings.Contains(result.ForUser, "bigmodel-reader") {
+		t.Fatalf("Expected bigmodel extractor, got: %s", result.ForUser)
+	}
+
+	var resultMap map[string]any
+	if err := json.Unmarshal([]byte(result.ForUser), &resultMap); err != nil {
+		t.Fatalf("failed to parse result json: %v", err)
+	}
+
+	text, _ := resultMap["text"].(string)
+	if text == "" {
+		t.Fatalf("Expected non-empty fallback text, got: %s", result.ForUser)
+	}
+
+	titleIdx := strings.Index(text, "Fallback Page")
+	descriptionIdx := strings.Index(text, "Fallback description")
+	contentIdx := strings.Index(text, "Fallback content from BigModel")
+	if titleIdx == -1 || descriptionIdx == -1 || contentIdx == -1 {
+		t.Fatalf("Expected title/description/content in text, got: %s", text)
+	}
+	if !(titleIdx < descriptionIdx && descriptionIdx < contentIdx) {
+		t.Fatalf("Expected order title->description->content, got: %s", text)
+	}
+}
+
+func TestWebTool_WebFetch_RequestFailureWithoutBigModelKey(t *testing.T) {
+	tool := NewWebFetchTool(50000)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result := tool.Execute(ctx, map[string]any{
+		"url": "http://127.0.0.1:1",
+	})
+	if !result.IsError {
+		t.Fatalf("Expected error when BigModel key not configured, got success: %s", result.ForUser)
+	}
+}
+
 func TestCreateHTTPClient_ProxyConfigured(t *testing.T) {
 	client, err := createHTTPClient("http://127.0.0.1:7890", 12*time.Second)
 	if err != nil {
@@ -715,4 +809,71 @@ func TestWebTool_SerperSearch_RealRequest(t *testing.T) {
 		t.Fatalf("expected output contains link, got: %s", result.ForUser)
 	}
 	t.Logf("Serper search result:\n%s", result.ForUser)
+}
+
+func TestDirectWebFetcher_RealRequest(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("PICOCLAW_INTEGRATION_TESTS")) != "1" {
+		t.Skip("skipping integration test (set PICOCLAW_INTEGRATION_TESTS=1 to enable)")
+	}
+
+	fetcher := &directWebFetcher{
+		redirectLimit: 5,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	result, err := fetcher.Fetch(ctx, "https://docs.bigmodel.cn/cn/guide/start/model-overview")
+	if err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Status < 200 || result.Status >= 400 {
+		t.Fatalf("unexpected status code: %d", result.Status)
+	}
+	if strings.TrimSpace(result.Text) == "" {
+		t.Fatal("expected non-empty text")
+	}
+	t.Logf("Direct web fetcher result preview: %+v", result)
+}
+
+func TestBigModelReaderFetcher_RealRequest(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("PICOCLAW_INTEGRATION_TESTS")) != "1" {
+		t.Skip("skipping integration test (set PICOCLAW_INTEGRATION_TESTS=1 to enable)")
+	}
+
+	apiKey := strings.TrimSpace(os.Getenv("BIGMODEL_API_KEY"))
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(os.Getenv("ZHIPU_API_KEY"))
+	}
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(os.Getenv("PICOCLAW_PROVIDERS_ZHIPU_API_KEY"))
+	}
+	if apiKey == "" {
+		t.Skip("BIGMODEL_API_KEY / ZHIPU_API_KEY / PICOCLAW_PROVIDERS_ZHIPU_API_KEY is empty")
+	}
+
+	fetcher := &bigModelReaderFetcher{
+		apiKey: apiKey,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	result, err := fetcher.Fetch(ctx, "https://docs.bigmodel.cn/cn/guide/start/model-overview")
+	if err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Extractor != "bigmodel-reader" {
+		t.Fatalf("unexpected extractor: %s", result.Extractor)
+	}
+	if strings.TrimSpace(result.Text) == "" {
+		t.Fatal("expected non-empty text")
+	}
+	t.Logf("BigModel reader result preview: %+v", result)
 }
